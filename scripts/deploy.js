@@ -1,29 +1,46 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
-const hre = require("hardhat");
+const { ethers, run, network } = require("hardhat");
 
-async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+const main = async () => {
+  const simpleStorageFactory = await ethers.getContractFactory("SimpleStorage");
+  const simpleStorage = await simpleStorageFactory.deploy();
+  await simpleStorage.deployed();
+  console.log(`SimpleStorage deployed to ${simpleStorage.address}`);
 
-  const lockedAmount = hre.ethers.utils.parseEther("1");
+  // console.log(network.config); //To get all the information about the network
 
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+  if (network.config.chainId === 4 && process.env.ETHERSCAN_API_KEY) {
+    //chainId is 4 for Rinkeby
+    await simpleStorage.deployTransaction.wait(6); // It will wait for 6 blocks to be mined after start verification
+    await verify(simpleStorage.address, []);
+  }
 
-  await lock.deployed();
+  /** Interaction with contract */
+  const currentValue = await simpleStorage.retrieve();
+  console.log("Current value:", currentValue);
+  const transactionResponse = await simpleStorage.store(42);
+  await transactionResponse.wait(1);
+  const updatedValue = await simpleStorage.retrieve();
+  console.log("New value:", updatedValue);
+};
 
-  console.log("Lock with 1 ETH deployed to:", lock.address);
-}
+// we can't call it when we deploy contract on local network("hardhat")
+// args parameter would be constructor of contract
+const verify = async (contractAddress, args) => {
+  console.log("verify");
+  try {
+    await run("verify:verify", {
+      address: contractAddress,
+      constructorArgs: args,
+    });
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => {
+    console.log("Deployed");
+  })
+  .catch((err) => {
+    console.error(err);
+  });
