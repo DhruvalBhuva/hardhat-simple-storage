@@ -28,6 +28,8 @@ module.exports = {
       chainId: 31337,
     },
   },
+
+  // To interact with the contract
   etherscan: {
     apiKey: ETHERSCAN_API_KEY,
   },
